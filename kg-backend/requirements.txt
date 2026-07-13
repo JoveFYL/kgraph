@@ -1,0 +1,8 @@
+psycopg[binary]==3.2.*
+pgvector==0.3.*
+pandas==2.2.*
+python-dotenv==1.0.*
+networkx==3.*
+openai==1.*
+fastapi==0.115.*
+uvicorn[standard]==0.32.*

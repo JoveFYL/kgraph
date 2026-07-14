@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 
+import ftfy
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -34,6 +35,12 @@ def canary(ok, message, *details):
 
 def main():
     df = pd.read_csv(FRACTIONALISED_JOBS_DATA_PATH)
+
+    # repair mojibake from a double UTF-8 encoding round-trip somewhere upstream
+    # (~184 rows, e.g. "Subgroupâ€™s" -> "Subgroup's"); uncurl_quotes=False so
+    # already-correct curly quotes elsewhere are left untouched
+    df.loc[:, "Task_Line"] = df["Task_Line"].apply(
+        lambda s: ftfy.fix_text(s, uncurl_quotes=False) if isinstance(s, str) else s)
 
     # create job_description column
     df.loc[:, "job_description"] = df.groupby(

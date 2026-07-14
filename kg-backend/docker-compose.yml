@@ -1,13 +1,15 @@
 services:
-  db:
-    image: pgvector/pgvector:pg17
-    environment:
-      POSTGRES_PASSWORD: devpassword
-      POSTGRES_DB: kgraph
-    ports:
-      - "5433:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    db:
+        image: pgvector/pgvector:pg17
+        container_name: kgraph-db
+        environment:
+            POSTGRES_USER: devuser
+            POSTGRES_PASSWORD: devpassword
+            POSTGRES_DB: kgraph
+        ports:
+            - '5433:5432'
+        volumes:
+            - pgdata:/var/lib/postgresql/data
 
 volumes:
-  pgdata:
+    pgdata:

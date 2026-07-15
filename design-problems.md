@@ -12,20 +12,17 @@
   same-job sources).
 - **New pipeline step (E1):** LLM assigns each task a coarse relative-effort score
   (1–5), stored next to `implied_skills`.
-- **Effort semantics: Option A (TENTATIVE — not locked).** See **Open questions** below.
+- **Effort semantics: Option B (LOCKED, 2026-07-15).** AI-augmented tasks are
+  _discounted_ at budget time in M6 (AI does part of the work → fewer real human
+  hours). Effort is still stored raw 1–5 in M1; the discount is applied when
+  computing/refilling `B`, not baked into the stored score.
 
 ---
 
 ## Open questions
 
-- **⚑ Effort semantics — Option A vs B (blocks E1 final lock).** Both refill a job to the
-  _same_ effort total; they differ only in how AI-augmented tasks are counted:
-    - **Option A (tentative default):** count AI-augmented tasks at _full_ effort. Simpler,
-      no double-accounting; the 1–5 scale as written in E1.
-    - **Option B:** _discount_ AI-augmented tasks (AI does part of the work → fewer real
-      human hours). More realistic, but precision-theater for a prototype.
-      Tentatively A; revisit B if redesigned jobs feel under-loaded. **Decision needed:
-      confirm A or switch to B.**
+- _None currently._ (Effort semantics A-vs-B resolved → **Option B**, see Decisions
+  locked; the discount factor's value is an M6 tuning knob, not an open design question.)
 
 ---
 
@@ -59,9 +56,10 @@ effort: integer 1–5     # coarse RELATIVE weight, NOT hours
 - Spot-check directionally: does a "1" look lighter than a "5"?
   **Feeds:** strip automated → `B = Σ effort(stripped)` → R6 refills until
   `Σ effort(added) ≈ B` (closest-to-B tie-break).
-  **⚑ Blocked on an open decision:** effort _semantics_ (Option A vs B) — see
-  **Open questions** above. Score design above is Option A as written.
-  **Status:** understood — fix agreed (coarse 1–5 LLM effort in M1); semantics A/B still open.
+  **Semantics resolved → Option B:** the 1–5 score is stored raw in M1; AI-augmented
+  tasks are discounted at budget time in M6 (both when computing freed `B` and when
+  counting added effort). Discount factor = M6 tuning knob.
+  **Status:** locked — coarse 1–5 LLM effort in M1, Option B discount applied in M6.
 
 ### P2 — Embedding context drowns the task, kills the cross-org signal
 
@@ -273,3 +271,58 @@ single retained task** (optional heavier version: cluster anchor into facets, sc
 nearest facet). NOTE: this kills the centroid only _as a synergy yardstick_ — §4.4's
 skill _pooling_ is fine (a union of skill strings, not an averaged vector) and stays.
 **Status:** understood — fix agreed (greedy budget-bounded MMR; 4 factors split by role; skill-gap = percentile bands on mean skill-novelty; synergy = max-sim not centroid)
+
+### S0 — Taxonomy transition: O\*NET via hybrid enrichment (supersedes brief §9 non-goal)
+
+**Decision:** map skills to O\*NET (35 Skills + 33 Knowledge = 68-item menu, names +
+definitions from Content Model Reference).
+
+**Option C — hybrid extraction:** one
+enrichment call returns both `implied_skills` (free text, kept) AND `onet_skills`
+(picks from the menu, enum-enforced in the JSON schema → invalid labels impossible).
+Requires full re-run of enrichment. New column `tasks.onet_skills TEXT[]`; menu stored
+in `onet_skills` reference table + `data/onet_skills.csv`. Scope: skills only — no
+tasks→DWA, no jobs→SOC.
+
+**Feeds:** edge skill-overlap term becomes exact Jaccard on `onet_skills` (replaces
+P3's soft-Jaccard as the 0.3 term); free-text skill vectors (P3) remain for R6
+skill-gap banding and rationale color.
+
+**Status:** agreed; pilot ~30 tasks before full run (check label distribution).
+
+### S1 — O\*NET collapses digital work into ~3 coarse tags
+
+**Problem:** data science, DevOps, cybersecurity all map to `Programming` /
+`Computers and Electronics` / `Systems Analysis`; no cybersecurity item exists
+(Public Safety and Security = physical).
+
+**Concern:** skill-gap on canonical tags alone reads "data scientist ↔ firmware dev =
+zero gap"; edges within digital roles lose discrimination.
+
+**Solution — division of labor between signals:** the 0.7 text-similarity term already
+discriminates fine grain (task lines embed far apart); canonical Jaccard is only the
+0.3 structural boost. Redesign scoring uses both layers: O\*NET overlap = coarse
+same-family gate; free-text skill embeddings (P3 space) = fine gap distance (R6 bands).
+Rationale cites both. **Escape hatch:** if pilot shows >~15% of tasks landing in
+`Programming`/`Computers and Electronics`, add a small namespaced house extension
+(e.g. `X.1 Cybersecurity`) — not pre-emptively.
+
+**Status:** resolved by design; re-check at pilot.
+
+### S2 — Junk task lines can't be tagged ("Other strategic work as required")
+
+**Problem:** corpus contains contentless tasks and boilerplate rows that are
+requirements text, not tasks ("Able to work independently…"). Forcing ≥1 O\*NET tag on
+them manufactures fake edges.
+
+**Concern:** junk connects to everything via forced tags; worst case a junk line is
+offered as a replacement task in `/redesign`.
+
+**Solution — enrichment doubles as quality gate:** add `task_quality: ok | vague |
+boilerplate` to the enrichment schema; when ≠ `ok`, `onet_skills` may be empty
+(minItems 0). Downstream: excluded from skill-overlap edges; **hard-excluded** from
+R5's candidate pool; dimmed/flagged in viz; same field applied to online decomposition
+output (R1) so JD boilerplate never becomes a fake task. Pilot reports junk rate →
+decide clean-at-source vs live-with-flags.
+
+**Status:** agreed; one schema field, no new pipeline stage.

@@ -4,4 +4,4 @@ learning/
 .env
 __pycache__/
 *.pyc
-
+*.txt

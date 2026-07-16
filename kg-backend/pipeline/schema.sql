@@ -1,12 +1,19 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 DROP TABLE IF EXISTS tasks;
-DROP TABLE IF EXISTS skills;
+DROP TABLE IF EXISTS skill_vectors;
 DROP TABLE IF EXISTS orgs;
+DROP TABLE IF EXISTS onet_skills;
 
 CREATE TABLE orgs (
     org_id SERIAL PRIMARY KEY,
     name TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE onet_skills (
+    element_id TEXT PRIMARY KEY,
+    element_name TEXT UNIQUE NOT NULL,
+    definition TEXT
 );
 
 CREATE TABLE tasks (
@@ -26,18 +33,20 @@ CREATE TABLE tasks (
     ) STORED
         CHECK (agency_label IN ('human-centric', 'AI-augmented', 'fully-automated')),
     implied_skills TEXT[],
+    embedding vector(3072),
     effort SMALLINT CHECK (effort BETWEEN 1 AND 5),
-    embedding vector(3072)
+    onet_skills TEXT[],
+    task_quality VARCHAR(20) CHECK (task_quality IN ('ok', 'vague', 'boilerplate'))
 );
 
-CREATE TABLE skills (
+CREATE TABLE skill_vectors (
     skill text PRIMARY KEY,
     embedding vector(3072)
 );
 
 CREATE INDEX idx_tasks_org_id ON tasks(org_id);
 CREATE INDEX idx_tasks_agency_label ON tasks(agency_label);
-CREATE INDEX idx_skills_embedding ON skills USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
+CREATE INDEX idx_skill_vectors_embedding ON skill_vectors USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
 
 
 -- Querying for 3072-dim using halfvec

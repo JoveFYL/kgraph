@@ -282,13 +282,16 @@ enrichment call returns both `implied_skills` (free text, kept) AND `onet_skills
 (picks from the menu, enum-enforced in the JSON schema → invalid labels impossible).
 Requires full re-run of enrichment. New column `tasks.onet_skills TEXT[]`; menu stored
 in `onet_skills` reference table + `data/onet_skills.csv`. Scope: skills only — no
-tasks→DWA, no jobs→SOC.
+tasks→DWA, no jobs→SOC. **Pick count: `minItems 0, maxItems 5`** — 0 so junk (non-`ok`)
+rows carry no tags, 5 (not 4) to let multi-facet tasks tag fully; run averaged 2.82
+tags/`ok` task, so 5 is a ceiling, not a target.
 
 **Feeds:** edge skill-overlap term becomes exact Jaccard on `onet_skills` (replaces
 P3's soft-Jaccard as the 0.3 term); free-text skill vectors (P3) remain for R6
 skill-gap banding and rationale color.
 
-**Status:** agreed; pilot ~30 tasks before full run (check label distribution).
+**Status:** done. Full corpus enriched (1,452 tasks, 0 nulls); quality gate holds
+(0 non-`ok` rows tagged).
 
 ### S1 — O\*NET collapses digital work into ~3 coarse tags
 
@@ -307,7 +310,8 @@ Rationale cites both. **Escape hatch:** if pilot shows >~15% of tasks landing in
 `Programming`/`Computers and Electronics`, add a small namespaced house extension
 (e.g. `X.1 Cybersecurity`) — not pre-emptively.
 
-**Status:** resolved by design; re-check at pilot.
+**Status:** resolved; pilot confirmed **5.6%** of tags in `Programming`/`Computers and
+Electronics` (« 15% trigger) — no house extension needed.
 
 ### S2 — Junk task lines can't be tagged ("Other strategic work as required")
 

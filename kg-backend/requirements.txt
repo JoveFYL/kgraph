@@ -1,5 +1,6 @@
 pgvector==0.3.*
 pandas==2.2.*
+ftfy==6.3.*
 python-dotenv==1.0.*
 networkx==3.*
 openai==1.*

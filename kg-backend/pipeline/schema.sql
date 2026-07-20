@@ -33,7 +33,7 @@ CREATE TABLE tasks (
     ) STORED
         CHECK (agency_label IN ('human-centric', 'AI-augmented', 'fully-automated')),
     implied_skills TEXT[],
-    embedding vector(3072),
+    embedding vector(1536),
     effort SMALLINT CHECK (effort BETWEEN 1 AND 5),
     onet_skills TEXT[],
     task_quality VARCHAR(20) CHECK (task_quality IN ('ok', 'vague', 'boilerplate'))
@@ -41,16 +41,16 @@ CREATE TABLE tasks (
 
 CREATE TABLE skill_vectors (
     skill text PRIMARY KEY,
-    embedding vector(3072)
+    embedding vector(1536)
 );
 
 CREATE INDEX idx_tasks_org_id ON tasks(org_id);
 CREATE INDEX idx_tasks_agency_label ON tasks(agency_label);
-CREATE INDEX idx_skill_vectors_embedding ON skill_vectors USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
+CREATE INDEX idx_skill_vectors_embedding ON skill_vectors USING hnsw ((embedding::halfvec(1536)) halfvec_cosine_ops);
 
 
--- Querying for 3072-dim using halfvec
+-- Querying for 1536-dim using halfvec
 -- SELECT id, content
 -- FROM document_embeddings
--- ORDER BY embedding::halfvec(3072) <=> '[0.012, -0.023, ...]'::halfvec(3072)
+-- ORDER BY embedding::halfvec(1536) <=> '[0.012, -0.023, ...]'::halfvec(1536)
 -- LIMIT 5;

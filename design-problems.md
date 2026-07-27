@@ -6,60 +6,65 @@
   NetworkX + Louvain (`graph.json`) moves to the frontend milestone — its only
   consumer is the visualization. Build order: **M0 → M1 (enrich) → M2 (embed) →
   M6 (redesign)**; M3–M4 (graph) come later with the picture.
-- **Redesign is effort-budget-constrained**, not 1:1-per-removed-task and not an
-  open pool. Strip automated tasks → freed effort budget `B` → refill to `B` with
-  skill-adjacent human/AI-augmented tasks (MMR-diverse; exclude automated +
-  same-job sources).
-- **New pipeline step (E1):** LLM assigns each task a coarse relative-effort score
-  (1–5), stored next to `implied_skills`.
-- **Effort semantics: Option B (LOCKED, 2026-07-15).** AI-augmented tasks are
-  _discounted_ at budget time in M6 (AI does part of the work → fewer real human
-  hours). Effort is still stored raw 1–5 in M1; the discount is applied when
-  computing/refilling `B`, not baked into the stored score.
+- **Redesign is count-parity-constrained**, not an open pool. Strip `N` automated
+  tasks → refill `N` slots with skill-adjacent human/AI-augmented tasks
+  (MMR-diverse; exclude automated + same-job sources).
+- **Effort scoring dropped (2026-07-27).** The coarse 1–5 LLM effort score and its
+  Option B AI-augmented discount are gone — `tasks.effort` column dropped, `effort`
+  removed from the enrichment prompt, JSON schema, and write path. R6 now stops on
+  count parity. See E1 for why and what it costs.
 
 ---
 
 ## Open questions
 
-- _None currently._ (Effort semantics A-vs-B resolved → **Option B**, see Decisions
-  locked; the discount factor's value is an M6 tuning knob, not an open design question.)
+- **Should R6 stop early on weak candidates?** Count parity fills exactly `N` slots
+  even if the last pick is a poor match. A relevance floor (stop when the best
+  remaining MMR score drops below a threshold, and deliver fewer than `N`) is the
+  obvious guard, but the threshold is uncalibrated and there's no golden set to tune
+  it on yet. Prototype: fill all `N` and let mandatory human review (§7/§9) catch
+  weak picks; revisit if the tail is consistently junk.
 
 ---
 
 ## Problem
 
-### E1 — Effort field
+### E1 — Stopping condition for the refill loop (effort field DROPPED 2026-07-27)
 
-R6's selection loop stops when
-`added_effort ≈ B`, where `B` = effort freed by stripping automated tasks. But source
-data (brief §2) has **no effort column** → `B` is uncomputable → R6's stopping condition
-is undefined.
-**Why you can't sidestep it:**
+**The problem, restated:** R6 strips automated tasks and refills the job with
+replacements. Something has to say _when to stop refilling_. Source data (brief §2)
+carries no size or duration per task, and users submit free-text job descriptions with
+no per-task estimates — so any measure of "how much work is this task" has to be
+**derived**, like `implied_skills`.
 
-- Count tasks 1:1 → rejected; one trivial automated task ≠ one heavy human task.
-- Ask the user → they submit free-text, have no per-task estimates.
-  So effort is **derived**, like `implied_skills`.
-  **Fix — coarse LLM-assigned effort score, in the _same_ enrichment call:**
+**What was tried and dropped:** a coarse LLM-assigned effort score (integer 1–5,
+"1 = file a form, 5 = lead a negotiation"), produced in the same M1 enrichment call and
+stored in `tasks.effort`. It gave R6 a budget: `B = Σ effort(stripped)`, refill until
+`Σ effort(added) ≈ B`, with AI-augmented tasks discounted at budget time (the "Option B"
+semantics). Dropped because it was a guess stacked on a guess — an LLM rating task
+weight from one line of text, with no ground truth to calibrate against and no check
+available beyond "does a 1 look lighter than a 5." The AI-augmented discount factor
+added a second uncalibrated knob multiplying the first. Column dropped and the field
+removed from the enrichment prompt, JSON schema, and write path on 2026-07-27.
 
-```
-effort: integer 1–5     # coarse RELATIVE weight, NOT hours
-  1 = trivial/quick     (log an entry, file a form)
-  3 = moderate          (draft a standard report)
-  5 = major/sustained   (lead a negotiation, run an investigation)
-```
+**Replacement — count parity:** strip `N` automated tasks, refill `N` slots. `N` is
+exact, needs no model call, and can't drift. See R6's loop.
 
-- Coarse on purpose — you need relative weights so "don't replace one heavy task with
-  five trivial ones" holds; hours = false precision an LLM can't deliver.
-- Fold into the M1 prompt (same `task_line` + `job_description` inputs) → one call yields
-  both `implied_skills` AND `effort`; no second pass over 5k tasks.
-- Store nullable next to `implied_skills` → inherits P5 resumability (skip scored rows).
-- Spot-check directionally: does a "1" look lighter than a "5"?
-  **Feeds:** strip automated → `B = Σ effort(stripped)` → R6 refills until
-  `Σ effort(added) ≈ B` (closest-to-B tie-break).
-  **Semantics resolved → Option B:** the 1–5 score is stored raw in M1; AI-augmented
-  tasks are discounted at budget time in M6 (both when computing freed `B` and when
-  counting added effort). Discount factor = M6 tuning knob.
-  **Status:** locked — coarse 1–5 LLM effort in M1, Option B discount applied in M6.
+**Accepted tradeoff (state it plainly):** the original objection to 1:1 counting still
+holds — one trivial automated task ≠ one heavy human task, so a redesigned job can come
+out meaningfully heavier or lighter than it went in, and nothing in the pipeline
+detects that. What makes this acceptable rather than merely simpler: every replacement
+already goes to **mandatory human review with rationale** (brief §7/§9), and "this is
+too much work for one person" is a judgment the reviewer can actually make from the
+task list in front of them — while the LLM demonstrably could not. The check moved
+from an unvalidatable number to the human who was always in the loop anyway.
+
+**If this proves wrong:** the symptom to watch for in review is reviewers routinely
+cutting picks for workload reasons. That's the signal to revisit — but with a measure
+grounded in something real (reviewer-supplied estimates on a sample, say), not another
+LLM guess.
+
+**Status:** effort dropped; count parity in R6.
 
 ### P2 — Embedding context drowns the task, kills the cross-org signal
 
@@ -187,9 +192,9 @@ read-only reference data: matched _against_ and stripped _away_, never handed ou
 
 **Status:** label filter + exact-source-job exclusion; cross-org & plausibility handled in scoring/review
 
-### R6 — Scoring underspecified; now effort-budget-constrained
+### R6 — Scoring underspecified; now count-parity-constrained
 
-**Where:** online, candidate scoring (brief §4.5) + effort decision.
+**Where:** online, candidate scoring (brief §4.5) + stopping condition.
 
 **Fundamental problem:** the brief lists 4 factors and implies `score = weighted sum`,
 take top-k. That shape is wrong on 3 counts:
@@ -198,8 +203,9 @@ take top-k. That shape is wrong on 3 counts:
    **Non-redundancy** depends on what's _already picked_ → sequential, not a fixed term.
 2. **Skill-gap is non-monotonic** ("tiny = redundant, medium = ideal, huge = stretch"
    — a hump). A linear weight can't say "the middle is best."
-3. There's a **budget** (effort conservation, E1), so it's not top-k — it's _fill until
-   added effort ≈ B_. Stopping condition = budget, not a fixed count.
+3. Selection is **sequential, not a ranking you slice**. Even with a fixed target count
+   (`N` = tasks stripped, E1), you can't rank once and take the top `N`: point 1 means
+   each pick changes the scores of everything left in the pool.
 
 **The four factors split by _role_, they are NOT four weights:**
 | Brief factor | What it really is | Where it goes |
@@ -209,22 +215,24 @@ take top-k. That shape is wrong on 3 counts:
 | Non-redundancy | sequential penalty | MMR `−λ·max-sim-to-already-picked`, _inside the loop_ |
 | Skill-gap | non-monotonic feasibility | band flag (drop/keep/flag), _not_ a score term |
 
-**Fix — greedy, budget-bounded MMR (two independent gears in one loop):**
+**Fix — greedy, count-bounded MMR (two independent gears in one loop):**
 
 ```
-B = total effort of stripped automated tasks                     (E1)
+N = number of stripped automated tasks              (count parity, E1)
 pool = R5's filtered candidates
 precompute per candidate: relevance = f(proximity, synergy);  skill-band (below)
 drop 'redundant'-band candidates
 selected = []
-while added_effort < B and candidates remain:          # gear B: BUDGET = when to stop
+while len(selected) < N and candidates remain:         # gear B: COUNT = when to stop
     pick argmax( relevance − λ·max_sim(cand, selected) )  # gear A: MMR = who's next (diversity)
-    selected += cand;  added_effort += cand.effort;  annotate if 'stretch'
+    selected += cand;  annotate if 'stretch'
 ```
 
-Gear A (non-redundancy) = _which_ candidate next (keeps picks diverse). Gear B (budget)
-= _when to stop_. Independent — don't conflate "diverse enough" with "enough effort."
-**Budget tie-break: land closest to B** (overshoot or undershoot, whichever's nearer).
+Gear A (non-redundancy) = _which_ candidate next (keeps picks diverse). Gear B (count)
+= _when to stop_. Independent — don't conflate "diverse enough" with "enough tasks."
+**Under-fill:** if the filtered pool empties before `N`, return fewer and say so in the
+output. Never relax R5's label filter or the 'redundant' drop to hit the number — a
+short list is a finding, a padded one is a lie.
 
 **Skill-gap band — measures feasibility, not similarity ("can this person realistically
 learn it?"), computed in the P3 skill-vector space:**
@@ -258,7 +266,8 @@ text-embedding-3-large, so set cuts by **percentile** of the gap distribution, n
 absolute values.
 
 **Knobs to write down before coding:** proximity/synergy weights in `relevance`; MMR λ;
-the two band percentiles; budget tolerance. (R6's analogue of the brief §8 tuning items.)
+the two band percentiles. (R6's analogue of the brief §8 tuning items. Note this list
+got shorter when effort went — no budget tolerance to tune.)
 
 **Synergy note:** brief §4.4 says represent the
 retrained job as one _embedding centroid_ (average of retained-task vectors) and score
@@ -270,7 +279,9 @@ penalizes tasks that strongly fit one real facet.
 single retained task** (optional heavier version: cluster anchor into facets, score vs
 nearest facet). NOTE: this kills the centroid only _as a synergy yardstick_ — §4.4's
 skill _pooling_ is fine (a union of skill strings, not an averaged vector) and stays.
-**Status:** understood — fix agreed (greedy budget-bounded MMR; 4 factors split by role; skill-gap = percentile bands on mean skill-novelty; synergy = max-sim not centroid)
+**Status:** understood — fix agreed (greedy count-bounded MMR, `N` = tasks stripped;
+4 factors split by role; skill-gap = percentile bands on mean skill-novelty; synergy =
+max-sim not centroid)
 
 ### S0 — Taxonomy transition: O\*NET via hybrid enrichment (supersedes brief §9 non-goal)
 

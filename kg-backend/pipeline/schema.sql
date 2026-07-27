@@ -34,7 +34,6 @@ CREATE TABLE tasks (
         CHECK (agency_label IN ('human-centric', 'AI-augmented', 'fully-automated')),
     implied_skills TEXT[],
     embedding vector(1536),
-    effort SMALLINT CHECK (effort BETWEEN 1 AND 5),
     onet_skills TEXT[],
     task_quality VARCHAR(20) CHECK (task_quality IN ('ok', 'vague', 'boilerplate'))
 );

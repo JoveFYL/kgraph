@@ -38,11 +38,6 @@ If task_quality is not "ok", usually return an empty list.
 3. implied_skills -- for an "ok" task, 2-5 short free-text competencies genuinely required \
 (not a restatement of the text, not generic filler like "communication" unless the task is \
 actually about that). For a non-"ok" task, return an empty list.
-4. effort -- a coarse RELATIVE weight, 1-5, for how large a chunk of the role this task is. \
-NOT hours:
-    1 = trivial/quick   (log an entry, file a form)
-    3 = moderate        (draft a standard report)
-    5 = major/sustained (lead a negotiation, run an investigation)
 
 O*NET menu -- choose onet_skills only from these exact names:
 
@@ -53,22 +48,22 @@ shown in the exact format you must return:
 
 <example>
 Task: "Contribute to the data architecture engineering decisions to support data analytics"
-{{"task_quality": "ok", "onet_skills": ["Systems Analysis (Skill)", "Computers and Electronics (Knowledge)"], "implied_skills": ["data architecture", "analytical reasoning"], "effort": 2}}
+{{"task_quality": "ok", "onet_skills": ["Systems Analysis (Skill)", "Computers and Electronics (Knowledge)"], "implied_skills": ["data architecture", "analytical reasoning"]}}
 </example>
 
 <example>
 Task: "Identify non-compliance against policies and requirements during design, implementation and testing phases."
-{{"task_quality": "ok", "onet_skills": ["Quality Control Analysis (Skill)", "Law and Government (Knowledge)"], "implied_skills": ["regulatory compliance", "quality assurance", "attention to detail"], "effort": 3}}
+{{"task_quality": "ok", "onet_skills": ["Quality Control Analysis (Skill)", "Law and Government (Knowledge)"], "implied_skills": ["regulatory compliance", "quality assurance", "attention to detail"]}}
 </example>
 
 <example>
 Task: "A significant part of your role involves working with system manufacturers and Operators to negotiate, review, and manage Long Term Service Support (LTSS) contracts, ensuring cost-effective and timely support throughout the asset life cycle."
-{{"task_quality": "ok", "onet_skills": ["Negotiation (Skill)", "Management of Material Resources (Skill)"], "implied_skills": ["contract negotiation", "vendor management", "lifecycle planning"], "effort": 5}}
+{{"task_quality": "ok", "onet_skills": ["Negotiation (Skill)", "Management of Material Resources (Skill)"], "implied_skills": ["contract negotiation", "vendor management", "lifecycle planning"]}}
 </example>
 
 <example>
 Task: "Other strategic work as required to support organisational objectives."
-{{"task_quality": "vague", "onet_skills": [], "implied_skills": [], "effort": 1}}
+{{"task_quality": "vague", "onet_skills": [], "implied_skills": []}}
 </example>
 """
 
@@ -100,9 +95,8 @@ def build_response_format(enum_values: list[str]) -> dict:
                         "minItems": 0,
                         "maxItems": 5,
                     },
-                    "effort": {"type": "integer", "minimum": 1, "maximum": 5},
                 },
-                "required": ["task_quality", "onet_skills", "implied_skills", "effort"],
+                "required": ["task_quality", "onet_skills", "implied_skills"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -161,13 +155,12 @@ def process_one(client, system_prompt, response_format, engine, row):
         conn.execute(
             text(
                 "UPDATE tasks SET task_quality = :quality, onet_skills = :onet, "
-                "implied_skills = :skills, effort = :effort WHERE task_id = :id"
+                "implied_skills = :skills WHERE task_id = :id"
             ),
             {
                 "quality": result["task_quality"],
                 "onet": result["onet_skills"],
                 "skills": result["implied_skills"],
-                "effort": result["effort"],
                 "id": row.task_id,
             },
         )
@@ -220,7 +213,7 @@ def main(limit=None):
                 task_id, result = fut.result()  # re-raises anything from the thread
                 print(
                     f"[{i}/{len(rows)}] task_id={task_id} q={result['task_quality']} "
-                    f"onet={result['onet_skills']} effort={result['effort']}"
+                    f"onet={result['onet_skills']}"
                 )
             except Exception as e:
                 print(f"[{i}/{len(rows)}] task_id={row.task_id} failed: {e}")

@@ -1,7 +1,20 @@
-learning/
+# Python
 .venv/
-.DS_Store
-.env
 __pycache__/
 *.pyc
-*.txt
+
+# Secrets
+.env
+
+# OS
+.DS_Store
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Local artifacts — not for version control
+kg-backend/backups/
+*.dump
+learning/

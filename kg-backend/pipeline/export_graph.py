@@ -20,7 +20,8 @@ from sqlalchemy import create_engine, text
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-OUT_PATH = Path(__file__).resolve().parent.parent.parent / "frontend" / "graph.json"
+OUT_PATH = Path(__file__).resolve().parent.parent.parent / \
+    "frontend" / "public" / "graph.json"
 
 engine = create_engine(DATABASE_URL)
 

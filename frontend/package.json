@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/d3-dsv": "^3.0.7",
+    "d3-dsv": "^3.0.1",
     "d3-force": "^3.0.0",
     "pixi.js": "^8.19.0",
     "react": "^19.2.7",
